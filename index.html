@@ -1,44 +1,225 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lexia Brasil</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; }
-        input { width: 70%; padding: 12px; font-size: 16px; }
-        button { padding: 12px 25px; font-size: 16px; background: #0066cc; color: white; border: none; cursor: pointer; }
-        #answer { margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #009739 0%, #FEDD00 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { 
+            font-size: 28px; 
+            margin-bottom: 8px;
+            color: #009739;
+        }
+        .subtitle { 
+            color: #666; 
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #009739;
+        }
+        button {
+            margin-top: 16px;
+            width: 100%;
+            padding: 14px;
+            background: #009739;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #007a2e; }
+        button:disabled { 
+            background: #ccc; 
+            cursor: not-allowed; 
+        }
+        .response {
+            margin-top: 24px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #009739;
+            display: none;
+        }
+        .response.show { display: block; }
+        .response.error {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        .loading { 
+            display: none; 
+            margin-top: 12px; 
+            color: #666;
+            font-size: 14px;
+        }
+        .loading.show { display: block; }
+        .status {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <h1>🇧🇷 Lexia Brasil</h1>
-    <p><strong>ИИ-помощник по бразильским законам, налогам и финансам</strong></p>
-
-    <input type="text" id="question" placeholder="Какой налог платит ИП в Бразилии?">
-    <button onclick="askAI()">Спросить ИИ</button>
-
-    <div id="answer"></div>
+    <div class="container">
+        <h1>🇧🇷 Lexia Brasil</h1>
+        <p class="subtitle">ИИ-помощник по бразильским законам, налогам и финансам</p>
+        
+        <textarea 
+            id="questionInput" 
+            placeholder="Digite sua pergunta sobre legislação brasileira, impostos, Open Finance..."
+            maxlength="2000"
+        ></textarea>
+        
+        <button id="askBtn" onclick="askQuestion()">Спросить ИИ</button>
+        <div class="loading" id="loading">⏳ Обрабатываю запрос...</div>
+        <div class="status" id="status"></div>
+        
+        <div class="response" id="response">
+            <strong>Ответ:</strong>
+            <p id="responseText"></p>
+        </div>
+    </div>
 
     <script>
-        async function askAI() {
-            const q = document.getElementById('question').value;
-            if (!q) return;
-
-            document.getElementById('answer').innerHTML = 'ИИ думает...';
-
+        // 🔧 ЗАМЕНИТЕ на ваш реальный URL после деплоя в Modal
+        const MODAL_ENDPOINT = "https://dzhamal--lexia-brasil-ask-question.modal.run";
+        const HEALTH_ENDPOINT = MODAL_ENDPOINT.replace('/ask', '/health');
+        
+        async function askQuestion() {
+            const input = document.getElementById('questionInput');
+            const btn = document.getElementById('askBtn');
+            const loading = document.getElementById('loading');
+            const response = document.getElementById('response');
+            const responseText = document.getElementById('responseText');
+            const status = document.getElementById('status');
+            
+            const question = input.value.trim();
+            if (!question) {
+                showResponse('❌ Пожалуйста, введите вопрос', true);
+                return;
+            }
+            
+            // UI state: loading
+            btn.disabled = true;
+            loading.classList.add('show');
+            response.classList.remove('show', 'error');
+            status.textContent = '';
+            
             try {
-                const response = await fetch('https://dzhamal--lexia-brasil-ask-question.modal.run', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q })
-});
-
-                const data = await response.json();
-                document.getElementById('answer').innerHTML = '<strong>Ответ ИИ:</strong><br>' + data.answer;
-            } catch (e) {
-                document.getElementById('answer').innerHTML = 'Ошибка: ' + e.message;
+                // 🔍 Сначала проверяем, жив ли эндпоинт
+                const healthRes = await fetch(HEALTH_ENDPOINT, { 
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                if (!healthRes.ok) {
+                    throw new Error(`Health check failed: ${healthRes.status}`);
+                }
+                
+                // 📤 Отправляем вопрос
+                const res = await fetch(MODAL_ENDPOINT, {
+                    method: 'POST',
+                    mode: 'cors',  // ← критично для CORS
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ question: question })  // ← обязательно stringify
+                });
+                
+                // 🔍 Логируем ответ для отладки
+                console.log('📡 Response status:', res.status);
+                console.log('📡 Response headers:', Object.fromEntries(res.headers.entries()));
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(`HTTP ${res.status}: ${errorData.detail || res.statusText}`);
+                }
+                
+                const data = await res.json();
+                showResponse(data.answer || data, false);
+                status.textContent = '✅ Успешно';
+                
+            } catch (error) {
+                console.error('🔥 Fetch error:', error);
+                
+                // 🎯 Специфичная обработка "Failed to fetch"
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    showResponse(
+                        '❌ Ошибка соединения. Проверьте:<br>' +
+                        '1. CORS настройки в modal_app.py (allow_origins без слэша)<br>' +
+                        '2. Правильный MODAL_ENDPOINT в index.html<br>' +
+                        '3. Консоль браузера → Network → детали запроса',
+                        true
+                    );
+                } else {
+                    showResponse(`❌ ${error.message}`, true);
+                }
+                status.textContent = '⚠️ Ошибка';
+                
+            } finally {
+                // Restore UI
+                btn.disabled = false;
+                loading.classList.remove('show');
             }
         }
+        
+        function showResponse(text, isError) {
+            const response = document.getElementById('response');
+            const responseText = document.getElementById('responseText');
+            
+            responseText.innerHTML = text;  // innerHTML для переносов строк
+            response.classList.add('show');
+            if (isError) {
+                response.classList.add('error');
+            } else {
+                response.classList.remove('error');
+            }
+        }
+        
+        // Enter = отправить (Shift+Enter = новая строка)
+        document.getElementById('questionInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                askQuestion();
+            }
+        });
+        
+        // Автофокус на поле ввода
+        document.getElementById('questionInput').focus();
     </script>
 </body>
 </html>
