@@ -27,7 +27,7 @@
             document.getElementById('answer').innerHTML = 'ИИ думает...';
 
             try {
-                const response = await fetch('https://lexia-brasil--dzhamal.modal.run/ask_question', {
+                const response = await fetch('https://dzhamal--lexia-brasil-ask-question.modal.run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question: q })
